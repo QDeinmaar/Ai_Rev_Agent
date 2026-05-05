@@ -44,11 +44,27 @@ class PeParser:
             'size_of_optional_header': fh.SizeOfOptionalHeader,
             'characteristics': hex(fh.Characteristics)
         }
+    
+    def get_sections(self):
+        if not self.pe:
+            return[]
+        
+        sections= []
+
+        for section in self.pe.sections:
+            name = section.Name.decode('utf-8', errors = 'ignore').strip('\x00')
+            sections.append({
+                'name': name,
+                'virtual_size': section.Misc_VirtualSize,
+                'raw_size': section.SizeOfRawData,
+                'entropy': round(section.get_entropy(), 2)
+            })
+        return sections
 
 if __name__ == '__main__':
     import sys
 
-    if len(sys.argv) > 2:
+    if len(sys.argv) < 2:
         print("Usage : python pe_parser.py <file_path> !")
         sys.exit(1)
 
@@ -65,6 +81,12 @@ if __name__ == '__main__':
         print(f"  Machine: {file_header['machine']}")
         print(f"  Sections: {file_header['number_of_sections']}")
         print(f"  Optional header size: {file_header['size_of_optional_header']} bytes")
-        
+
+        sections = parser.get_sections()
+        print(f"\n[SECTIONS]")
+        for s in sections:
+            packed_warning = "Packed" if s['entropy'] > 7.0 else ""
+            print(f"{s['name']:10} | Size: {s['virtual_size']:8} | Entropy: {s['entropy']}{packed_warning}")
+
     else:
         print("Not a valid PE file")
