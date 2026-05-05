@@ -60,6 +60,52 @@ def analyze_file(file_path):
         print(f"Result: {icon} {verdict}")
 
         if score_data['reasons']:
-            print(f"\n   Reasons:")
+            print(f"\n Reasons:")
         for reason in score_data['reasons']:
-            print(f"      • {reason}")
+            print(f".{reason}")
+
+    # Save to DataBase
+
+    results = {
+        'filename': Path(file_path).name,
+        'sha256': sha256,
+        'file_size': file_size,
+        'entropy': entropy,
+        'is_packed': is_packed,
+        'score': score_data['score'],
+        'verdict': verdict,
+        'imports': imports[:50],  # Limit for database
+        'dangerous_apis': dangerous,
+        'sections': sections,
+        'suspicious_sections': [s for s in sections if s['name'] in ['UPX', 'UPX0', 'UPX1', '.aspack', '.MPRESS', 'themida']]
+    }
+
+    db = DatabaseManager()
+    sample_id = db.save_analysis(results)
+    db.close()
+    
+    print(f"\n Saved to database (ID: {sample_id})")
+    print(f"{'=' *60}\n")
+    
+    return results
+
+def list_recent():
+    db = DatabaseManager()
+    recent = db.list_recent(10)
+    db.close()
+    
+    if not recent:
+        print("\n📋 No analyses found in database\n")
+        return
+    
+    print(f"\n📋 RECENT ANALYSES")
+    print(f"{'-'*70}")
+    print(f"{'VERDICT':12} {'SCORE':6} {'FILENAME':35} {'DATE'}")
+    print(f"{'-'*70}")
+    
+    for row in recent:
+        filename, sha256, score, verdict, analyzed_at = row
+        date_part = analyzed_at[:16] if analyzed_at else "Unknown"
+        print(f"{verdict:12} {score:6} {filename[:35]:35} {date_part}")
+    
+    print(f"{'-'*70}\n")
