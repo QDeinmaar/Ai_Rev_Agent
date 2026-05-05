@@ -41,4 +41,25 @@ def analyze_file(file_path):
     print(f"Entropy: {entropy}")
     print(f"Packed: {'Yes' if is_packed else 'No'}")
 
-    
+    print(f"\n Imports:")
+    print(f"Total: {len(imports)}")
+    print(f"Dangerous: {len(dangerous)}")
+
+    if dangerous:
+        print(f"\n Dangerous APIs found:")
+        for imp in dangerous[:10]:
+            print(f" {imp['api']} (from{imp['dll']})")
+        
+    print(f"\n Sections:")
+    for s in sections[:8]:
+        packed_mark = "" if s ['entropy'] > 7.0 and s['name'] != '.rsrc' else ""
+        print(f"{s['name']:12} | Size: {s['virtual_size']:>8} | Entropy: {s['entropy']} {packed_mark}")
+
+        print(f"\n Verdict:")
+        print(f"Score: {score_data['score']}/100")
+        print(f"Result: {icon} {verdict}")
+
+        if score_data['reasons']:
+            print(f"\n   Reasons:")
+        for reason in score_data['reasons']:
+            print(f"      • {reason}")
