@@ -60,6 +60,25 @@ class PeParser:
                 'entropy': round(section.get_entropy(), 2)
             })
         return sections
+    
+    def is_packed(self):
+        if not self.pe:
+            return False
+        
+        sections = self.get_sections()
+
+        for s in sections:
+            if s['entropy'] > 7.0:
+                return True
+            
+        suspicious_name = ['UPX', 'UPX0', 'UPX1', '.aspack', '.MPRESS', 'themida'] # suspicious names
+
+        for s in sections:
+            if s['name'] in suspicious_name:
+                return True
+            
+        return False
+    
 
 if __name__ == '__main__':
     import sys
@@ -87,6 +106,14 @@ if __name__ == '__main__':
         for s in sections:
             packed_warning = "Packed" if s['entropy'] > 7.0 else ""
             print(f"{s['name']:10} | Size: {s['virtual_size']:8} | Entropy: {s['entropy']}{packed_warning}")
+
+        if parser.is_packed():
+            print("\n DETECTED: File appears to be PACKED!")
+            print("   The real code is compressed/encrypted.")
+            print("   Static analysis may be limited.")
+        else:
+            print("\n File is NOT packed.")
+            print("   Static analysis will work normally.")
 
     else:
         print("Not a valid PE file")
