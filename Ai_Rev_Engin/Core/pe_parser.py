@@ -141,6 +141,58 @@ class PeParser:
                 dangerous.append(imp)
 
             return dangerous
+        
+    def calculate_score(self):
+        if not self.pe:
+            return 0
+        
+        score = 0
+        reasons = []
+
+        if self.is_packed():
+            score += 30
+            reasons.append("This file is packed or encrypted !")
+
+        dangerous = self.get_dangerous_apis()
+        api_score = min(len(dangerous) * 5, 40) # clamping api_score
+        score += api_score
+        
+        if dangerous:
+            reasons.append(f"We Found {len(dangerous)} dangerous APIs (+{api_score})")
+
+        sections = self.get_sections()
+        high_entropy = [ s for s in sections if s['entropy'] > 7.0 and s['name'] != '.rsrc']
+        if high_entropy:
+            score += 15
+            reasons.append(f"This file have high entropy : {', '.join(s['name'] for s in high_entropy)}")
+
+        suspicious_names = ['UPX', 'UPX0', 'UPX1', '.aspack', '.MPRESS', 'themida']
+        for s in sections:
+            if s['name'] in suspicious_names:
+                score += 10
+                reasons.append(f"Suspicious section name: {s['name']}")
+                break
+
+        import_count =len(self.get_imports())
+        if import_count < 3 and import_count > 0:
+            score += 5
+            reasons(f"Unusually low imports ({import_count})")
+
+        return {
+            'score': min(score, 100),
+            'reasons': reasons
+        }
+    
+    def get_verdict(self, score):
+        if score >= 70:
+            return "MALICIOUS"
+        elif score >= 40:
+            return "SUSPICIOUS"
+        elif score >= 10:
+            return "CAUTION"
+        else:
+            return "BENIGN"
+    
     
 
 if __name__ == '__main__':
@@ -171,24 +223,36 @@ if __name__ == '__main__':
             print(f"{s['name']:10} | Size: {s['virtual_size']:8} | Entropy: {s['entropy']}{packed_warning}")
 
         if parser.is_packed():
-            print("\n DETECTED: File appears to be PACKED!")
-            print("   The real code is compressed/encrypted.")
-            print("   Static analysis may be limited.")
+            print("\nDETECTED: File appears to be PACKED!")
+            print("The real code is compressed/encrypted.")
+            print("Static analysis may be limited.")
         else:
-            print("\n File is NOT packed.")
-            print("   Static analysis will work normally.")
+            print("\nFile is NOT packed.")
+            print("Static analysis will work normally.")
 
         imports = parser.get_imports()
         print(f"\n[IMPORTS]")
-        print(f"  Total APIs imported: {len(imports)}")
+        print(f"Total APIs imported: {len(imports)}")
         
         dangerous = parser.get_dangerous_apis()
         if dangerous:
-            print(f"\n  DANGEROUS APIs Found ({len(dangerous)}):")
-            for imp in dangerous[:15]:  # Show first 15
-                print(f"    - {imp['api']} (from {imp['dll']})")
+            print(f"\nDANGEROUS APIs Found ({len(dangerous)}):")
+            for imp in dangerous[:15]:
+                print(f"{imp['api']} (from {imp['dll']})")
         else:
-            print(f"\n  No dangerous APIs detected")
+            print(f"No dangerous APIs detected")
+        
+        # Calculate score and verdict
+        score_data = parser.calculate_score()
+        verdict = parser.get_verdict(score_data['score'])
+        
+        print(f"\n[VERDICT]")
+        print(f"Score: {score_data['score']}/100")
+        print(f"Verdict: {verdict}")
+        if score_data['reasons']:
+            print(f"\n  Reasons:")
+            for reason in score_data['reasons']:
+                print(f".{reason}")
 
     else:
         print("Not a valid PE file")
