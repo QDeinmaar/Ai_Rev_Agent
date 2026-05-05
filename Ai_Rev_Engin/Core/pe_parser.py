@@ -192,6 +192,18 @@ class PeParser:
             return "CAUTION"
         else:
             return "BENIGN"
+        
+    def compute_sha256(self):
+        import hashlib
+        with open(self.filepath, 'rb') as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    
+    def get_entropy(self):
+        sections = self.get_sections()
+        if not sections:
+            return 0
+        total = sum(s['entropy'] for s in sections)
+        return round(total / len(sections), 2)
     
     
 
