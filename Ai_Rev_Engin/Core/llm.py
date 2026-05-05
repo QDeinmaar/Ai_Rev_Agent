@@ -36,27 +36,31 @@ class LLMAnalyser:
         api_text = '\n'.join(api_list) if api_list else "None"
 
         prompt = f"""
-                    You are a professional malware reverse engineer.
+                        You are a senior malware reverse engineer.
 
-                    Analyze ONLY the provided evidence.
-                    Do NOT invent facts.
-                    Do NOT mention websites, authors, downloads, or external context.
+                        Analyze ONLY the provided evidence.
 
-                    Binary Evidence:
-                    Filename: {results.get('filename', 'unknown')}
-                    Dangerous APIs: 
-                    {api_text}
-                    Entropy: {results.get('entropy', 0)}
-                    Packed: {results.get('is_packed', False)}
-                    Score: {results.get('score', 0)}/100
-                    Verdict: {results.get('verdict', 'unknown')}
+                        Rules:
+                        - Do NOT invent facts
+                        - Do NOT mention exploits unless explicitly shown
+                        - Do NOT mention remote code execution unless explicitly shown
+                        - Base conclusions strictly on APIs, entropy, packing, and score
 
-                    Provide:
+                        Evidence:
+                        Dangerous APIs: {results['dangerous_apis']}
+                        Entropy: {results['entropy']}
+                        Packed: {results['is_packed']}
+                        Score: {results['score']}
+                        Verdict: {results['verdict']}
 
-                    1. Likely behavior
-                    2. Why it is suspicious
-                    3. Risk level (Low/Medium/High/Critical)
-                    4. MITRE ATT&CK technique if applicable
+                        Return:
+
+                        1. Likely behavior
+                        2. Why suspicious
+                        3. Risk level
+                        4. MITRE ATT&CK techniques
+
+                        Keep response concise and technical.
                 """
         try:
             response = ollama.chat(
@@ -78,5 +82,54 @@ class LLMAnalyser:
             'verdict': verdict
         }
         return self.analyze_malware(results)
+
+
+
+if __name__ == "__main__":
+
+        print("=" *60)
+        print("Testing LLM Analyser")
+        print("="*60)
+        print("\nMake sure Ollama is running: ollama serve")
+        print("Make sure model is installed: ollama pull gemma:2b\n")
+
+        ai = LLMAnalyser()
+
+        if ai.available:
+            test_results = {
+
+                'filename': 'suspicious.exe',
+                'dangerous_apis': [
+                {'dll': 'kernel32.dll', 'api': 'CreateRemoteThread'},
+                {'dll': 'kernel32.dll', 'api': 'WriteProcessMemory'},
+                {'dll': 'advapi32.dll', 'api': 'RegSetValue'}
+            ],
+
+            'entropy': 7.2,
+            'is_packed': True,
+            'score': 85,
+            'verdict': 'MALICIOUS'
+            }
+
+            print("Analyzing test malware...")
+            print("-"*60)
+            result = ai.analyze_malware(test_results)
+            print(result)
+            print("-"*60)
+        else:
+            print("\nTroubleshooting steps:")
+            print("1. Open a NEW terminal")
+            print("2. Run: ollama serve")
+            print("3. Keep that terminal open")
+            print("4. In THIS terminal, run: ollama pull gemma:2b")
+            print("5. Then run this script again")
+
         
+
+
+
+
+        
+    
+
         
