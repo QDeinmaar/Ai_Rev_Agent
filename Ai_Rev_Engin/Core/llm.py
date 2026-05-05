@@ -18,7 +18,8 @@ class LLMAnalyser:
                 print(f"Model {self.model} not Found")
                 print(f"Run : Ollama pull {self.model}")
                 return False
-        except Exception as e:
+            
+        except Exception:
             print(f"Ollama not running. Start: Ollama serve")
             return False
         
@@ -32,7 +33,7 @@ class LLMAnalyser:
 
         api_list = []
         for api in results.get('dangerous_apis', [])[:10]:
-            api_list.append(f"    - {api['api']} (from {api['dll']})")
+            api_list.append(f"- {api['api']} (from {api['dll']})")
         api_text = '\n'.join(api_list) if api_list else "None"
 
         prompt = f"""
@@ -47,7 +48,8 @@ class LLMAnalyser:
                         - Base conclusions strictly on APIs, entropy, packing, and score
 
                         Evidence:
-                        Dangerous APIs: {results['dangerous_apis']}
+
+                        Dangerous APIs: {api_text}
                         Entropy: {results['entropy']}
                         Packed: {results['is_packed']}
                         Score: {results['score']}

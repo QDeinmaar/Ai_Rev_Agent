@@ -133,7 +133,10 @@ class PeParser:
             'CreateFile', 'WriteFile', 'DeleteFile', 'MoveFile'
         }
 
-        all_imports = self.get_imports()
+        all_imports =  self.get_imports()
+        
+        if not all_imports:
+            return []
 
         dangerous = []
         for imp in all_imports:
@@ -154,7 +157,11 @@ class PeParser:
             reasons.append("This file is packed or encrypted !")
 
         dangerous = self.get_dangerous_apis()
+
+        if dangerous is None: # Trying to fix Problem
+            dangerous = []
         api_score = min(len(dangerous) * 5, 40) # clamping api_score
+
         score += api_score
         
         if dangerous:
