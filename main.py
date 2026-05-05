@@ -29,7 +29,7 @@ def analyze_file(file_path):
     dangerous = parser.get_dangerous_apis()
     is_packed = parser.is_packed()
     score_data = parser.calculate_score()
-    verdict, icon = parser.get_verdict(score_data['score'])
+    verdict = parser.get_verdict(score_data['score'])
     sha256 = parser.compute_sha256()
     entropy = parser.get_entropy()
     file_size = Path(file_path).stat().st_size
@@ -57,7 +57,7 @@ def analyze_file(file_path):
 
         print(f"\n Verdict:")
         print(f"Score: {score_data['score']}/100")
-        print(f"Result: {icon} {verdict}")
+        print(f"Result: {verdict}")
 
         if score_data['reasons']:
             print(f"\n Reasons:")
@@ -95,10 +95,10 @@ def list_recent():
     db.close()
     
     if not recent:
-        print("\n📋 No analyses found in database\n")
+        print("\n No analyses found in database\n")
         return
     
-    print(f"\n📋 RECENT ANALYSES")
+    print(f"\n RECENT ANALYSES")
     print(f"{'-'*70}")
     print(f"{'VERDICT':12} {'SCORE':6} {'FILENAME':35} {'DATE'}")
     print(f"{'-'*70}")
@@ -109,3 +109,60 @@ def list_recent():
         print(f"{verdict:12} {score:6} {filename[:35]:35} {date_part}")
     
     print(f"{'-'*70}\n")
+
+def search_by_hash(sha256):
+    db = DatabaseManager()
+    result = db.get_sample_by_sha256(sha256)
+    db.close()
+    
+    if result:
+        print(f"\n Found:")
+        print(f"ID: {result[0]}")
+        print(f"Filename: {result[1]}")
+        print(f"SHA256: {result[2]}")
+        print(f"Score: {result[6]}")
+        print(f"Verdict: {result[7]}")
+        print(f"Date: {result[8]}\n")
+    else:
+        print(f"\n No sample found with SHA256: {sha256[:16]}...\n")
+
+
+
+
+# TEST
+
+def main():
+    
+    if len(sys.argv) < 2:
+        print("""
+╔══════════════════════════════════════════════════════════════╗
+║     AI Reverse Engineering Platform                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+USAGE:
+    python main.py <file_path>          Analyze a file
+    python main.py --list               Show recent analyses
+    python main.py --search <sha256>    Find by hash
+
+EXAMPLES:
+    python main.py C:\\Windows\\System32\\notepad.exe
+    python main.py --list
+    python main.py --search e3b0c44298fc1c14
+""")
+        return
+    
+    command = sys.argv[1]
+    
+    if command == "--list":
+        list_recent()
+    elif command == "--search" and len(sys.argv) > 2:
+        search_by_hash(sys.argv[2])
+    elif command.startswith("--"):
+        print(f" Unknown command: {command}")
+        print("Use: --list or --search <hash>")
+    else:
+        # Assume it's a file path
+        analyze_file(command)
+
+if __name__ == "__main__":
+    main()
