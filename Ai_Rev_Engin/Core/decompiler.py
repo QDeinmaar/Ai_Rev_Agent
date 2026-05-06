@@ -56,9 +56,10 @@ class GhidraDecompiler:
             self.headless,
             temp_dir,
             "temp_project",
-            "import", file_path,
-            "postScript", str(self.script_path),
-            "DeleteProject"
+            "-import", file_path,
+            "-postScript", str(self.script_path),
+            "-deleteProject",
+            "-noanalysis"
         ]
 
         try:
@@ -78,9 +79,9 @@ class GhidraDecompiler:
 
                 print(f"Decompiled {len(functions)} functions")
                 return {
-                    "Success :": True,
-                    "Functions": functions,
-                    "Total": len(functions)
+                    "success :": True,
+                    "functions": functions,
+                    "total": len(functions)
                 }
             else:
                 return {
@@ -94,7 +95,48 @@ class GhidraDecompiler:
             return {"success": False, "error" : "Timeout (120 seconds)"}
 
         except Exception as e:
-            return {"success": False, "error": str(e)}   
+            return {"success": False, "error": str(e)}
+        
+    
+    def get_pseudocode_text(self, file_path, max_functions = 5):
+        results = self.decompile(file_path)
 
+        if not results.get('success'):
+            return f"Decompilation failed : {results.get('error', 'Unkhnown')}"
+        
+        functions = results.get('functions', [])[:max_functions]
+
+        if not functions:
+            return "No functions decompiled"
+
+        output = f"Decompiled code from : {Path(file_path).name}:\n\n"
+
+        for func in functions:
+            output += f"\n {'=' *60}\n"
+            output += f"Functions: {func['name']}\n"
+            output += f"Address: {func['address']}\n"
+            output += f"{'=' *60}\n"
+            output += func['pseudocode'][:2000] + "\n"
+
+        return output
+
+
+
+
+if __name__ == "__main__":
+    print("="*60)
+    print("Testing Ghidra Decompiler")
+    print("="*60)
+
+    decomp = GhidraDecompiler()
+
+    if decomp.available:
+        test_file = r"C:\Windows\System32\notepad.exe"
+
+        if os.path.exists(test_file):
+            result = decomp.get_pseudocode_text(test_file)
+            print(result)
+        else:
+            print(f"Test file not found: {test_file}")
         
         
