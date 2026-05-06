@@ -24,46 +24,58 @@ class LLMAnalyser:
             return False
         
 
-    def analyze_malware(self, results):
+    def analyze_malware(self, results, pseudocode=None):
+    
         if not self.available:
             return "LLM not available"
-
+    
         if not results.get('dangerous_apis'):
             return "No dangerous APIs detected - file appears benign."
-
+    
+        # Format dangerous APIs for the prompt
         api_list = []
         for api in results.get('dangerous_apis', [])[:10]:
-            api_list.append(f"- {api['api']} (from {api['dll']})")
-        api_text = '\n'.join(api_list) if api_list else "None"
-
+            api_list.append(f"    - {api['api']} (from {api['dll']})")
+            api_text = '\n'.join(api_list) if api_list else "None"
+    
+        # Format MITRE techniques
+        mitre_list = []
+        for tech in results.get('mitre_techniques', [])[:5]:
+            mitre_list.append(f"    - {tech['technique']}: {tech['name']}")
+            mitre_text = '\n'.join(mitre_list) if mitre_list else "None"
+    
+        # Add pseudocode if available (limit size)
+        pseudo_text = ""
+        if pseudocode and "No decompiled" not in pseudocode:
+        # Limit to first 3000 chars
+            pseudo_text = f"\nDecompiled Code (C-like pseudocode):\n{pseudocode[:3000]}\n"
+    
         prompt = f"""
-                        You are a senior malware reverse engineer.
+                You are a professional malware reverse engineer.
 
-                        Analyze ONLY the provided evidence.
+                Analyze ONLY the provided evidence.
+                Do NOT invent facts.
+                Do NOT mention websites, authors, downloads, or external context.
 
-                        Rules:
-                        - Do NOT invent facts
-                        - Do NOT mention exploits unless explicitly shown
-                        - Do NOT mention remote code execution unless explicitly shown
-                        - Base conclusions strictly on APIs, entropy, packing, and score
+                Binary Evidence:
+                Filename: {results.get('filename', 'unknown')}
+                Dangerous APIs: 
+                {api_text}
+                MITRE ATT&CK Techniques found:
+                {mitre_text}
+                Entropy: {results.get('entropy', 0)}
+                Packed: {results.get('is_packed', False)}
+                Score: {results.get('score', 0)}/100
+                Verdict: {results.get('verdict', 'unknown')}
+                {pseudo_text}
+                Provide:
 
-                        Evidence:
-
-                        Dangerous APIs: {api_text}
-                        Entropy: {results['entropy']}
-                        Packed: {results['is_packed']}
-                        Score: {results['score']}
-                        Verdict: {results['verdict']}
-
-                        Return:
-
-                        1. Likely behavior
-                        2. Why suspicious
-                        3. Risk level
-                        4. MITRE ATT&CK techniques
-
-                        Keep response concise and technical.
+                1. Likely behavior
+                2. Why it is suspicious
+                3. Risk level (Low/Medium/High/Critical)
+                4. MITRE ATT&CK technique if applicable
                 """
+    
         try:
             response = ollama.chat(
                 model=self.model,

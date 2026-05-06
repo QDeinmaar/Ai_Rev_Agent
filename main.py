@@ -10,9 +10,6 @@ from Ai_Rev_Engin.Core.llm import LLMAnalyser
 
 from Ai_Rev_Engin.Core.ghidra_client import GhidraClient
 
-
-
-
 # ----------------------------
 # Analyze File
 # ----------------------------
@@ -50,9 +47,7 @@ def analyze_file(file_path):
     # MITRE Mapping
     # ----------------------------
     mapper = MitreMapper()
-
     dangerous_api_names = [api["api"] for api in dangerous]
-
     mitre_results = mapper.map_apis(dangerous_api_names)
 
     # ----------------------------
@@ -87,7 +82,6 @@ def analyze_file(file_path):
             if section["entropy"] > 7.0 and section["name"] != ".rsrc"
             else ""
         )
-
         print(
             f"{section['name']:12} | "
             f"Size: {section['virtual_size']:>8} | "
@@ -112,9 +106,28 @@ def analyze_file(file_path):
     if mitre_results:
         print("\n MITRE ATT&CK Techniques:")
         for technique in mitre_results:
-            print(
-                f"- {technique['technique']} : {technique['name']}"
-            )
+            print(f"- {technique['technique']} : {technique['name']}")
+
+    # ----------------------------
+    # Prepare Results Dictionary (CREATE BEFORE GHIDRA)
+    # ----------------------------
+    results = {
+        "filename": file_path.name,
+        "sha256": sha256,
+        "file_size": file_size,
+        "entropy": entropy,
+        "is_packed": is_packed,
+        "score": score_data["score"],
+        "verdict": verdict,
+        "imports": imports[:50],
+        "dangerous_apis": dangerous,
+        "sections": sections,
+        "mitre_techniques": mitre_results,
+        "suspicious_sections": [
+            s for s in sections
+            if s["name"] in ["UPX", "UPX0", "UPX1", ".aspack", ".MPRESS", "themida"]
+        ]
+    }
 
     # ----------------------------
     # GHIDRA DECOMPILATION
@@ -136,54 +149,13 @@ def analyze_file(file_path):
         results['pseudocode'] = f"Decompilation failed: {e}"
 
     # ----------------------------
-    # AI Analysis (with pseudocode)
-    # ----------------------------
-    ai = LLMAnalyser()
-
-    if ai.available:
-        print("\n AI Analysis\n")
-        # Pass pseudocode to AI
-        ai_report = ai.analyze_malware(results, pseudocode_text)
-        print(ai_report)
-
-        
-
-    # ----------------------------
-    # Prepare Results
-    # ----------------------------
-    results = {
-        "filename": file_path.name,
-        "sha256": sha256,
-        "file_size": file_size,
-        "entropy": entropy,
-        "is_packed": is_packed,
-        "score": score_data["score"],
-        "verdict": verdict,
-        "imports": imports[:50],
-        "dangerous_apis": dangerous,
-        "sections": sections,
-        "mitre_techniques": mitre_results,
-        "suspicious_sections": [
-            s for s in sections
-            if s["name"] in [
-                "UPX",
-                "UPX0",
-                "UPX1",
-                ".aspack",
-                ".MPRESS",
-                "themida"
-            ]
-        ]
-    }
-
-    # ----------------------------
     # AI Analysis
     # ----------------------------
     ai = LLMAnalyser()
 
     if ai.available:
         print("\n AI Analysis\n")
-        ai_report = ai.analyze_malware(results)
+        ai_report = ai.analyze_malware(results, pseudocode_text)
         print(ai_report)
 
     # ----------------------------
@@ -198,7 +170,7 @@ def analyze_file(file_path):
 
     return results
 
-# ----------------------------
+    # ----------------------------
 # List Recent
 # ----------------------------
 def list_recent():
@@ -247,7 +219,6 @@ def search_by_hash(sha256):
         print(f"Date: {result[8]}")
     else:
         print(f"\n No sample found for hash: {sha256[:16]}...")
-
 
 # ----------------------------
 # Main CLI
