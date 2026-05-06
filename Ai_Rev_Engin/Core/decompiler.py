@@ -90,5 +90,11 @@ class GhidraDecompiler:
                     "stderr": result.stderr
                 }
 
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error" : "Timeout (120 seconds)"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}   
+
         
         
