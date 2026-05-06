@@ -1,5 +1,3 @@
-/* SimpleExport.java - Works with Ghidra's Java version */
-
 import ghidra.app.script.GhidraScript;
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;

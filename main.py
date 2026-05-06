@@ -8,6 +8,9 @@ from Ai_Rev_Engin.Core.mitre_mapper import MitreMapper
 from Ai_Rev_Engin.Data_Base.db_manager import DatabaseManager
 from Ai_Rev_Engin.Core.llm import LLMAnalyser
 
+from Ai_Rev_Engin.Core.ghidra_client import GhidraClient
+
+
 
 
 # ----------------------------
@@ -112,6 +115,38 @@ def analyze_file(file_path):
             print(
                 f"- {technique['technique']} : {technique['name']}"
             )
+
+    # ----------------------------
+    # GHIDRA DECOMPILATION
+    # ----------------------------
+    print("\n Ghidra Decompilation:")
+    pseudocode_text = None
+    try:
+        ghidra = GhidraClient()
+        pseudocode_text = ghidra.get_pseudocode_text(str(file_path), max_functions=3)
+        
+        if pseudocode_text and "No decompiled" not in pseudocode_text:
+            print(f"   Extracted {pseudocode_text.count('Function:')} functions")
+            results['pseudocode'] = pseudocode_text
+        else:
+            print(f"   No decompiled code available")
+            results['pseudocode'] = "Decompilation not available"
+    except Exception as e:
+        print(f"   Ghidra error: {e}")
+        results['pseudocode'] = f"Decompilation failed: {e}"
+
+    # ----------------------------
+    # AI Analysis (with pseudocode)
+    # ----------------------------
+    ai = LLMAnalyser()
+
+    if ai.available:
+        print("\n AI Analysis\n")
+        # Pass pseudocode to AI
+        ai_report = ai.analyze_malware(results, pseudocode_text)
+        print(ai_report)
+
+        
 
     # ----------------------------
     # Prepare Results
