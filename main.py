@@ -3,6 +3,7 @@ from pathlib import Path
 import time
 import csv
 import json
+from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -203,7 +204,7 @@ def batch_analysis(folder_path):
     start_time = time.time()
     malicious_count = 0
     suspicious_count = 0
-    bening_count = 0
+    benign_count = 0
     failed_count = 0
 
     for idx, file_path in enumerate(files, 1):
@@ -254,7 +255,7 @@ def batch_analysis(folder_path):
                 score = r.get('score', 0)
                 print(f"{r['filename']} (Score: {score})")
 
-    export_batch_csv(result, folder_path)
+    export_batch_csv(results, folder_path)
 
     return results
 
@@ -308,13 +309,7 @@ def export_batch_json(results, folder_path):
     with open(json_path, 'w') as f:
         json.dump(summary, f, indent=2)
     
-    print(f"📄 JSON report saved: {json_path}")
-
-                
-
-            
-        
-
+    print(f"JSON report saved: {json_path}")
 
     # List Recent
 
@@ -365,10 +360,12 @@ def search_by_hash(sha256):
     else:
         print(f"\n No sample found for hash: {sha256[:16]}...")
 
+
 # ----------------------------
 # Main CLI
 # ----------------------------
 def main():
+
     if len(sys.argv) < 2:
         print("""
 ╔══════════════════════════════════════════════════════════════╗
@@ -376,12 +373,14 @@ def main():
 ╚══════════════════════════════════════════════════════════════╝
 
 USAGE:
-    python main.py <file_path>
-    python main.py --list
-    python main.py --search <sha256>
+    python main.py <file_path>           Analyze a single file
+    python main.py --batch <folder>      Analyze all files in folder
+    python main.py --list                Show recent analyses
+    python main.py --search <sha256>     Find by hash
 
 EXAMPLES:
     python main.py malware.exe
+    python main.py --batch C:\\samples\\
     python main.py --list
     python main.py --search abc123...
 """)
@@ -389,7 +388,10 @@ EXAMPLES:
 
     command = sys.argv[1]
 
-    if command == "--list":
+    if command == "--batch" and len(sys.argv) > 2:
+        batch_analysis(sys.argv[2])
+    
+    elif command == "--list":
         list_recent()
 
     elif command == "--search" and len(sys.argv) > 2:
@@ -400,7 +402,6 @@ EXAMPLES:
 
     else:
         analyze_file(command)
-
 
 if __name__ == "__main__":
     main()
