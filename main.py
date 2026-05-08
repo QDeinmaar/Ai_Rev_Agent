@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import time
+import csv
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -251,6 +252,43 @@ def batch_analysis(folder_path):
             if r.get('verdict') in ['SUSPICIOUS', 'CAUTION']:
                 score = r.get('score', 0)
                 print(f"{r['filename']} (Score: {score})")
+
+    export_batch_csv(result, folder_path)
+
+    return results
+
+def export_batch_csv(results, folder_path):
+    if not results:
+        return
+    
+    timestamps = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    csv_path = Path(folder_path) / f"batch_report_{timestamps}.csv"
+
+    with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['filename', 'sha256', 'verdict', 'score', 'entropy', 
+                      'is_packed', 'total_imports', 'dangerous_apis', 'mitre_techniques']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for r in results:
+            # Format MITRE techniques for CSV
+            mitre_str = ", ".join([t.get('technique', '') for t in r.get('mitre_techniques', [])])
+            
+            writer.writerow({
+                'filename': r.get('filename', ''),
+                'sha256': r.get('sha256', '')[:16],
+                'verdict': r.get('verdict', ''),
+                'score': r.get('score', 0),
+                'entropy': r.get('entropy', 0),
+                'is_packed': r.get('is_packed', False),
+                'total_imports': len(r.get('imports', [])),
+                'dangerous_apis': len(r.get('dangerous_apis', [])),
+                'mitre_techniques': mitre_str
+            })
+    
+    print(f"\n CSV report saved: {csv_path}")
+
+
 
                 
 
