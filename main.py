@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import time
 import csv
+import json
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -288,7 +289,26 @@ def export_batch_csv(results, folder_path):
     
     print(f"\n CSV report saved: {csv_path}")
 
-
+def export_batch_json(results, folder_path):
+    if not results:
+        return
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    json_path = Path(folder_path) / f"batch_summary_{timestamp}.json"
+    
+    summary = {
+        "timestamp": timestamp,
+        "total_files": len(results),
+        "malicious": len([r for r in results if r.get('verdict') == 'MALICIOUS']),
+        "suspicious": len([r for r in results if r.get('verdict') in ['SUSPICIOUS', 'CAUTION']]),
+        "benign": len([r for r in results if r.get('verdict') == 'BENIGN']),
+        "results": results
+    }
+    
+    with open(json_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+    
+    print(f"📄 JSON report saved: {json_path}")
 
                 
 
