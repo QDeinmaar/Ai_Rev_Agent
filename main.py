@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import time
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -30,9 +31,9 @@ def analyze_file(file_path):
         print(" Invalid PE file")
         return None
 
-    # ----------------------------
+    
     # Extract Data
-    # ----------------------------
+    
     imports = parser.get_imports()
     dangerous = parser.get_dangerous_apis()
     sections = parser.get_sections()
@@ -43,16 +44,16 @@ def analyze_file(file_path):
     sha256 = parser.compute_sha256()
     file_size = file_path.stat().st_size
 
-    # ----------------------------
+    
     # MITRE Mapping
-    # ----------------------------
+    
     mapper = MitreMapper()
     dangerous_api_names = [api["api"] for api in dangerous]
     mitre_results = mapper.map_apis(dangerous_api_names)
 
-    # ----------------------------
+    
     # Display File Info
-    # ----------------------------
+    
     print("\n File Information:")
     print(f"Name: {file_path.name}")
     print(f"Size: {file_size:,} bytes")
@@ -60,9 +61,9 @@ def analyze_file(file_path):
     print(f"Entropy: {entropy}")
     print(f"Packed: {'Yes' if is_packed else 'No'}")
 
-    # ----------------------------
+    
     # Imports
-    # ----------------------------
+    
     print("\n Imports:")
     print(f"Total Imports: {len(imports)}")
     print(f"Dangerous APIs: {len(dangerous)}")
@@ -72,9 +73,9 @@ def analyze_file(file_path):
         for api in dangerous[:10]:
             print(f"- {api['api']} ({api['dll']})")
 
-    # ----------------------------
+    
     # Sections
-    # ----------------------------
+    
     print("\n Sections:")
     for section in sections[:8]:
         packed_mark = (
@@ -88,9 +89,9 @@ def analyze_file(file_path):
             f"Entropy: {section['entropy']} {packed_mark}"
         )
 
-    # ----------------------------
+    
     # Verdict
-    # ----------------------------
+    
     print("\n Verdict:")
     print(f"Score: {score_data['score']}/100")
     print(f"Result: {verdict}")
@@ -100,17 +101,17 @@ def analyze_file(file_path):
         for reason in score_data["reasons"]:
             print(f"- {reason}")
 
-    # ----------------------------
+    
     # MITRE Output
-    # ----------------------------
+    
     if mitre_results:
         print("\n MITRE ATT&CK Techniques:")
         for technique in mitre_results:
             print(f"- {technique['technique']} : {technique['name']}")
 
-    # ----------------------------
-    # Prepare Results Dictionary (CREATE BEFORE GHIDRA)
-    # ----------------------------
+    
+    # Prepare Results Dictionary 
+    
     results = {
         "filename": file_path.name,
         "sha256": sha256,
@@ -129,9 +130,9 @@ def analyze_file(file_path):
         ]
     }
 
-    # ----------------------------
+    
     # GHIDRA DECOMPILATION
-    # ----------------------------
+    
     print("\n Ghidra Decompilation:")
     pseudocode_text = None
     try:
@@ -148,9 +149,9 @@ def analyze_file(file_path):
         print(f"   Ghidra error: {e}")
         results['pseudocode'] = f"Decompilation failed: {e}"
 
-    # ----------------------------
+    
     # AI Analysis
-    # ----------------------------
+    
     ai = LLMAnalyser()
 
     if ai.available:
@@ -158,9 +159,9 @@ def analyze_file(file_path):
         ai_report = ai.analyze_malware(results, pseudocode_text)
         print(ai_report)
 
-    # ----------------------------
+    
     # Save to Database
-    # ----------------------------
+    
     db = DatabaseManager()
     sample_id = db.save_analysis(results)
     db.close()
@@ -170,9 +171,74 @@ def analyze_file(file_path):
 
     return results
 
-    # ----------------------------
-# List Recent
-# ----------------------------
+    # Batch Analysis
+
+def batch_analysis(folder_path):
+    folder = Path(folder_path)
+
+    if not folder.exists():
+        print(f"Folder does not exist : {folder_path}")
+        return
+    
+    pe_extensions = ['*.exe', '*.dll', '*.sys', '*.scr', '*.ocx', '*.cpl']
+    files = []
+
+    for ext in pe_extensions:
+        files.extend(folder.rglob(ext))
+
+    if not files:
+        print(f"PE Files dont exist in : {folder_path}")
+        return
+    
+    print("\n" + "=" * 70)
+    print(f"BATCH ANALYSIS")
+    print(f"Folder: {folder_path}")
+    print(f"Files found: {len(files)}")
+    print("=" * 70)
+
+    # STATS
+    results = []
+    start_time = time.time()
+    malicious_count = 0
+    suspicious_count = 0
+    bening_count = 0
+    failed_count = 0
+
+    for idx, file_path in enumerate(files, 1):
+        print(f"\n[{idx}/{len(files)}] Analyzing: {file_path.name}")
+        print("-" * 50)
+
+        try:
+            with open(file_path, 'rb') as f:
+                if f.read(2) != b'MZ':
+                    print(f"Skipping: Not a PE file")
+                    benign_count += 1
+                    continue
+                result = analyze_file(str(file_path))
+
+            if result:
+                results.append(result)
+                if result.get('verdict') == 'MALICIOUS':
+                    malicious_count += 1
+                elif result.get('verdict') == 'SUSPICIOUS':
+                    suspicious_count += 1
+                elif result.get('verdict') == 'CAUTION':
+                    suspicious_count += 1
+                else:
+                    benign_count += 1
+            else:
+                failed_count += 1
+        except Exception as e:
+            print(f'Error !: {e}')
+            failed_count += 1
+                
+
+            
+        
+
+
+    # List Recent
+
 def list_recent():
     db = DatabaseManager()
     recent = db.list_recent(10)
