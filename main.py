@@ -231,6 +231,27 @@ def batch_analysis(folder_path):
         except Exception as e:
             print(f'Error !: {e}')
             failed_count += 1
+
+    elapsed = time.time() - start_time
+
+    print("\n" + "=" * 70)
+    print("BATCH ANALYSIS SUMMARY")
+    print("=" * 70)
+    print(f"Total files scanned: {len(files)}")
+    print(f"Malicious: {malicious_count}")
+    print(f"Suspicious: {suspicious_count}")
+    print(f"Benign: {benign_count}")
+    print(f"Failed: {failed_count}")
+    print(f"Time elapsed: {elapsed:.1f} seconds")
+    print("=" * 70)    
+
+    if suspicious_count > 0:
+        print('\n Suspicious Files are :')
+        for r in results:
+            if r.get('verdict') in ['SUSPICIOUS', 'CAUTION']:
+                score = r.get('score', 0)
+                print(f"{r['filename']} (Score: {score})")
+
                 
 
             
