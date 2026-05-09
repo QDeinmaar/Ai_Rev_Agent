@@ -64,7 +64,7 @@ class RAG:
         
         try:
             self.embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name= "all-MiniLM-L6-v2"
+                model_name= "all-MiniLM-L6-v2",
                 device= "cpu"
             )
 
@@ -209,7 +209,7 @@ class RAG:
                 "mitre_name": "OS Credential Dumping",
                 "risk": "Critical"
             },
-            
+
             {
                 "id": "PAT-010",
                 "name": "User Execution",
@@ -219,5 +219,69 @@ class RAG:
                 "mitre_name": "User Execution",
                 "risk": "High"
             }
-        
         ]
+
+        if self.collection:
+            for pattern in self.patterns:
+                text = f"{pattern['name']} {pattern['description']} {' '.join(pattern['apis'])}"
+
+                self.collection.upsert(
+                    ids= [pattern["id"]],
+                    documents= [text],
+                    metadatas= [{
+
+                        "name": pattern["name"],
+                        "mitre_id": pattern["mitre_id"],
+                        "mitre_name": pattern["mitre_name"],
+                        "risk": pattern["risk"],
+                        "apis": ",".join(pattern["apis"])
+
+                    }]
+                )
+    
+    def retrieve(self, api_names: List[str], dangerous_apis: List[str] = None ) -> str:
+        if not self.initialized:
+            return
+        
+        search_apis = dangerous_apis if dangerous_apis else api_names
+        search_apis = [a for a in search_apis if a]
+
+        if not search_apis:
+            return
+        
+        keyword_matches = self._keyword_search(search_apis)
+
+        vector_matches = []
+
+        if self.collection:
+            vector_matches = self._vector_search(search_apis)
+
+        all_matches = keyword_matches + vector_matches
+        mitre_ids = [m.mitre_id for m in all_matches if m.mitre_id]
+        graph_matches = []
+        if mitre_ids and self.graph:
+            graph_matches = self._graph_search(mitre_ids)
+
+        all_evidence = all_matches + graph_matches
+        seen = set()
+        unique_evidence = []
+
+        for e in all_evidence:
+            key = f"{e.source}_{e.mitre_id}"
+            if key not in seen:
+                seen.add(key)
+                unique_evidence.append(e)
+
+        if not unique_evidence:
+            return
+            
+        context = "\n [Retrieved Knowledge - similar malware patterns]\n"
+        context += "The following khnow malware patterns match this file's APIs: \n\n"
+
+        
+
+
+
+        
+
+
