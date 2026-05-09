@@ -311,7 +311,7 @@ def export_batch_json(results, folder_path):
     
     print(f"JSON report saved: {json_path}")
 
-    # List Recent
+# List Recent
 
 def list_recent():
     db = DatabaseManager()
@@ -340,10 +340,8 @@ def list_recent():
 
     print("-" * 70)
 
-
-# ----------------------------
 # Search by SHA256
-# ----------------------------
+
 def search_by_hash(sha256):
     db = DatabaseManager()
     result = db.get_sample_by_sha256(sha256)
@@ -360,10 +358,8 @@ def search_by_hash(sha256):
     else:
         print(f"\n No sample found for hash: {sha256[:16]}...")
 
-
-# ----------------------------
 # Main CLI
-# ----------------------------
+
 def main():
 
     if len(sys.argv) < 2:
