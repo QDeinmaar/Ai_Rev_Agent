@@ -1,6 +1,7 @@
 import time
 import shutil
 import subprocess
+import os
 from pathlib import Path
 from datetime import datetime
 import sys
@@ -119,4 +120,108 @@ class EDRWATCHER:
         except Exception as e:
             print(f"Error analyzing the File : {e}")
 
+    def sen_alert(self, file_path, score, verdict, dangerous_apis):
+        print(f"\n" + "!" * 60)
+        print(f"MALICIOUS FILE DETECTED!")
+        print(f"!" * 60)
+        print(f"File: {file_path.name}")
+        print(f"Score: {score}/100")
+        print(f"Verdict: {verdict}")
+        print(f"APIs: {', '.join([a['api'] for a in dangerous_apis[:3]])}")
+        print(f"!" * 60)
+
+        try:
+            from plyer import notification
+            notification.notify(
+                tile = "MALWARE DETECTED !",
+                message = f"{file_path.name} \n Score: {score}/100 \n Verdict: {verdict}",
+                timeout = 10,
+                app_name = "AI_EDR"
+            )
+
+        except:
+            pass
+
+    def quarantine_file(self, file_path):
+        try:
+            if not file_path.exists():
+                return
+            
+            quarantine_dest = self.quarantine_path / file_path.name
+            shutil.move(str(file_path), str(quarantine_dest))
+            print(f"\n File quarantined : {quarantine_dest}")
+
+        except Exception as e:
+            print(f"Quarantine Failed : {e} !")
+
+    def terminate_process(self, file_path):
+        try:
+            process_name = file_path.stem + ".exe"
+            result = subprocess.run(
+                f'taskkill /f /im "{process_name}"',
+                shell = True,
+                capture_output= True,
+                text= True
+            )
+            if result.returncode == 0:
+                print(f"Terminated process : {process_name}")
+            else:
+                print(f"Process not running : {process_name}")
+        
+        except Exception as e:
+            print(f"Could not terminate : {e} !")
+
+    def log_event(self, file_path, score, verdict, dangerous_apis):
+        log_file = self.log_path / f"edr_log_{datetime.now().strftime('%Y-%m-%d')}.csv"
+
+        with open(log_file, 'a') as f:
+            f.write(f"{datetime.now().isoformat()}, {file_path.name}, {file_path}, {score}, {verdict}, {len(dangerous_apis)}\n")
+
+    def scan_startup(self):
+        print("\n" + "=" * 60)
+        print("Scanning Startup Locations for Persistence")
+        print("=" * 60)
+
+        startup_folders = [
+            Path(os.eviron.get('APPDATA', '')) / "Microsoft/Windows/Start Menu/Programs/Startup",
+            Path(os.environ.get('PROGRAMDATA', '')) / "Microsoft/Windows/Start Menu/Programs/StartUp",
+        ]
+
+        registry_keys = [
+            r"HKLM\Software\Microsoft\Windows\CurrentVersion\Run",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+            r"HKLM\Software\Microsoft\Windows\CurrentVersion\RunOnce",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce",
+        ]
+        
+        suspicious = []
+
+        for key in registry_keys:
+            try:
+                result = subprocess.run(
+                    f'reg_query "{key}',
+                    shell= True,
+                    capture_output= True,
+                    text= True
+                )
+
+                if result.stdout:
+                    print(f"\n Registry : {key}")
+                    for line in result.stdout.split('\n'):
+                        if "REG_" in line:
+                            print(f"{line.strip()}")
+            
+            except:
+                pass
+
+            if suspicious:
+                print(f"\n Found {len(suspicious)} startup items")
+
+                for item in suspicious:
+                    self.analyze_new_file(item)
+            
+            else:
+                print(f"\n No suspicious startup items found")
+
     
+                
