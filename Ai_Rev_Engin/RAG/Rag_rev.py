@@ -325,7 +325,71 @@ class RAG:
         return matches
     
     def _graph_search(self, mitre_ids: List[str]) -> List[RetrieveEvidence]:
+        matches = []
+        seen = set()
+
+        for tid in mitre_ids:
+            if tid in seen:
+                continue
+            seen.add(tid)
+
+            if self.graph and tid in self.graph:
+                for neighbor in self.graph.neighbors(tid):
+                    if neighbor not in seen:
+                        evidence = RetrieveEvidence()
+                        evidence.source = 'MITRE graph'
+                        evidence.content = f"Related technique: {neighbor} - {self.graph.nodes[neighbor].get('name', 'Unkhnown')}"
+                        evidence.similarity = 0.6
+                        evidence.confidence = Confidence.MEDIUM
+                        evidence.mitre_id = neighbor
+                        evidence.mitre_name = self.graph.nodes[neighbor].get('name', ' ')
+                        matches.append(evidence)
+                        seen.add(neighbor)
+
+        return matches
+    
+    def get_context(self, api_names: List[str], dangerous_apis: List[str] = None) -> str:
+        if not self.initialized:
+            return ""
         
+        evidence_list = self.retrieve(api_names, dangerous_apis)
+
+        if not evidence_list:
+            return ""
+        
+        context = "\n[KNOWLEDGE BASE - Known Malware Patterns]\n"
+        context += "The following patterns match this file:\n\n"
+
+        for ev in evidence_list:
+             
+            mitre_str = f"({ev.mitre_id}: {ev.mitre_name})" if ev.mitre_id else ""
+            context += f"{ev.source}{mitre_str}\n"
+            context += f"{ev.content}\n"
+            context += f"Confidence: {ev.confidence.value * 100:.0f}% | Similarity: {ev.similarity:.2f}\n\n"
+        
+        return context
+    
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("Testing RAG System")
+    print("=" * 60)
+    
+    rag = RAG()
+    
+    if rag.initialized:
+        # Test with suspicious APIs
+        test_apis = ["CreateRemoteThread", "WriteProcessMemory", "VirtualAllocEx", "RegSetValue", "InternetOpen"]
+        
+        print("\nTesting with APIs:", test_apis)
+        print("-" * 60)
+        
+        context = rag.get_context(test_apis, test_apis)
+        print(context)
+    else:
+        print("RAG initialization failed. Installing dependencies...")
+        print("Run: pip install chromadb networkx sentence-transformers")
            
 
         

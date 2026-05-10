@@ -1,4 +1,5 @@
 import ollama 
+from RAG import Rag_rev
 
 class LLMAnalyser:
     def __init__(self, model="gemma:2b"):
