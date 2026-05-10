@@ -223,5 +223,121 @@ class EDRWATCHER:
             else:
                 print(f"\n No suspicious startup items found")
 
+    def monitor_process(self, check_interval = 5):
+        print("\n" + "=" * 60)
+        print("🔍 Process Monitor Started")
+        print("=" * 60)
+        print("Monitoring running processes for malware...")
+        print("Press Ctrl+C to stop\n")
+
+        seen_processes = set()
+
+        try:
+            while True:
+                result = subprocess.run(
+                    'tasklist /FO CSV /NH',
+                    shell=True,
+                    capture_output=True,
+                    text=True
+                )
+
+                current_processes = set()
+                for line in result.stdout.strip().split('\n'):
+                    if line:
+                        parts = line.strip('"').split('","')
+                        if len(parts) >= 2:
+                            proc_name = parts[0]
+                            pid = parts[1]
+                            current_processes.add((proc_name, pid))
+                            
+                            if (proc_name, pid) not in seen_processes:
+                                seen_processes.add((proc_name, pid))
+                                
+                                suspicious_names = ['powershell.exe', 'cmd.exe', 'rundll32.exe', 
+                                                   'wscript.exe', 'cscript.exe', 'mshta.exe']
+                                
+                                if proc_name.lower() in suspicious_names:
+                                    print(f"\nSuspicious process started: {proc_name} (PID: {pid})")
+                                    
+                                    path_result = subprocess.run(
+                                        f'wmic process where processid={pid} get executablepath',
+                                        shell=True,
+                                        capture_output=True,
+                                        text=True
+                                    )
+                                    print(f"   Path: {path_result.stdout.split('\\n')[1] if path_result.stdout else 'Unknown'}")
+                
+                time.sleep(check_interval)
+                
+        except KeyboardInterrupt:
+            print("\nProcess Monitor stopped")
+
+    def full_system_scan(self):
+        print("\n" + "=" * 60)
+        print("🔍 Starting Full System Scan")
+        print("=" * 60)
+
+         # Common malware locations
+        scan_paths = [
+            Path(os.environ.get('SYSTEMROOT', 'C:\\Windows')) / "Temp",
+            Path(os.environ.get('APPDATA', '')),
+            Path(os.environ.get('LOCALAPPDATA', '')),
+            Path("C:\\Users"),
+            Path("C:\\ProgramData"),
+        ]
+
+        all_files = []
+
+        for path in scan_paths:
+            if path.exists():
+                for ext in ['*.exe', '*.dll', '*.scr', '*.sys']:
+                    all_files.extend(path.rglob(ext))
+        
+        print(f"Found {len(all_files)} PE files to scan")
+
+        malicious_count = 0
+
+        for idx, file_path in enumerate(all_files[:100]):
+            print(f"\n [{idx + 1} / {min(100, len(all_files))}] Scanning : {file_path.name}")
+
+            try:
+                parser = PeParser(str(file_path))
+                if parser.load():
+                    score_data = parser.calculate_score()
+                    if score_data['score'] >= 70:
+                        malicious_count += 1
+                        print(f"Malicious Score : {score_data['score']}")
+                        self.quarantine_file(file_path)
+            
+            except:
+                pass
+        
+        print(f"\n" + "=" * 60)
+        print(f"SCAN COMPLETE")
+        print(f"Files scanned: {min(100, len(all_files))}")
+        print(f"Malicious found: {malicious_count}")
+        print(f"Quarantined: {malicious_count}")
+        print("=" * 60)
+
+
+# Test
+if __name__ == "__main__":
+    import os
     
+    edr = EDRWATCHER()
+    
+    print("EDR-Lite Menu:")
+    print("1. File System Watcher")
+    print("2. Scan Startup Locations")
+    print("3. Full System Scan")
+    
+    choice = input("\nChoice: ")
+    
+    if choice == "1":
+        folder = input("Folder to monitor (default: C:\\Downloads): ") or "C:\\Downloads"
+        edr.watch_folder(folder)
+    elif choice == "2":
+        edr.scan_startup()
+    elif choice == "3":
+        edr.full_system_scan()
                 
