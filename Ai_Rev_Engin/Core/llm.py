@@ -1,10 +1,17 @@
-import ollama 
-from RAG import Rag_rev
+import ollama
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# from RAG_Sys.Rag_rev import RAG               # use this if u have better Vram more than 8 ( see changed line 64)
+from RAG_Sys.light_rag import LightRAG as RAG
 
 class LLMAnalyser:
     def __init__(self, model="gemma:2b"):
         self.model = model
         self.available = self._check_model()
+        self.rag = RAG()  # Initialize RAG
 
     def _check_model(self):
         try:
@@ -15,13 +22,13 @@ class LLMAnalyser:
                 if self.model in m: 
                     print(f"LLM is ready: {self.model}")
                     return True
-                
-                print(f"Model {self.model} not Found")
-                print(f"Run : Ollama pull {self.model}")
-                return False
+            
+            print(f"Model {self.model} not found")
+            print(f"Run: ollama pull {self.model}")
+            return False
             
         except Exception:
-            print(f"Ollama not running. Start: Ollama serve")
+            print(f"Ollama not running. Start: ollama serve")
             return False
         
 
@@ -37,45 +44,54 @@ class LLMAnalyser:
         api_list = []
         for api in results.get('dangerous_apis', [])[:10]:
             api_list.append(f"    - {api['api']} (from {api['dll']})")
-            api_text = '\n'.join(api_list) if api_list else "None"
+        api_text = '\n'.join(api_list) if api_list else "None"
     
         # Format MITRE techniques
         mitre_list = []
         for tech in results.get('mitre_techniques', [])[:5]:
-            mitre_list.append(f"    - {tech['technique']}: {tech['name']}")
-            mitre_text = '\n'.join(mitre_list) if mitre_list else "None"
+            mitre_list.append(f"- {tech['technique']}: {tech['name']}")
+        mitre_text = '\n'.join(mitre_list) if mitre_list else "None"
     
         # Add pseudocode if available (limit size)
         pseudo_text = ""
         if pseudocode and "No decompiled" not in pseudocode:
-        # Limit to first 3000 chars
+            # Limit to first 3000 chars
             pseudo_text = f"\nDecompiled Code (C-like pseudocode):\n{pseudocode[:3000]}\n"
     
+        # ========== ADD RAG CONTEXT ==========
+        api_names = [api['api'] for api in results.get('dangerous_apis', [])]
+        rag_context = self.rag.get_context(api_names) if self.rag else ""
+        # rag_context = self.rag.get_context(api_names, api_names) if self.rag.initialized else ""  # Use this line and comment 63
+        # ====================================
+    
         prompt = f"""
-                You are a professional malware reverse engineer.
+You are a professional malware reverse engineer.
 
-                Analyze ONLY the provided evidence.
-                Do NOT invent facts.
-                Do NOT mention websites, authors, downloads, or external context.
+Analyze ONLY the provided evidence.
+Do NOT invent facts.
+Do NOT mention websites, authors, downloads, or external context.
 
-                Binary Evidence:
-                Filename: {results.get('filename', 'unknown')}
-                Dangerous APIs: 
-                {api_text}
-                MITRE ATT&CK Techniques found:
-                {mitre_text}
-                Entropy: {results.get('entropy', 0)}
-                Packed: {results.get('is_packed', False)}
-                Score: {results.get('score', 0)}/100
-                Verdict: {results.get('verdict', 'unknown')}
-                {pseudo_text}
-                Provide:
+{rag_context}
 
-                1. Likely behavior
-                2. Why it is suspicious
-                3. Risk level (Low/Medium/High/Critical)
-                4. MITRE ATT&CK technique if applicable
-                """
+Binary Evidence:
+Filename: {results.get('filename', 'unknown')}
+Dangerous APIs: 
+{api_text}
+MITRE ATT&CK Techniques found:
+{mitre_text}
+Entropy: {results.get('entropy', 0)}
+Packed: {results.get('is_packed', False)}
+Score: {results.get('score', 0)}/100
+Verdict: {results.get('verdict', 'unknown')}
+{pseudo_text}
+
+Provide:
+
+1. Likely behavior
+2. Why it is suspicious
+3. Risk level (Low/Medium/High/Critical)
+4. MITRE ATT&CK technique if applicable
+"""
     
         try:
             response = ollama.chat(
@@ -87,7 +103,7 @@ class LLMAnalyser:
             return f"Error calling Ollama: {e}"
 
         
-    def explain_dangerous_apis(self, dangerous_apis, filename, entropy = 0, is_packed = False, score = 0, verdict = "Unkhnown   "):
+    def explain_dangerous_apis(self, dangerous_apis, filename, entropy=0, is_packed=False, score=0, verdict="Unknown"):
         results = {
             'filename': filename,
             'dangerous_apis': dangerous_apis,
@@ -99,46 +115,41 @@ class LLMAnalyser:
         return self.analyze_malware(results)
 
 
-
 if __name__ == "__main__":
+    print("=" * 60)
+    print("Testing LLM Analyser with RAG")
+    print("=" * 60)
+    print("\nMake sure Ollama is running: ollama serve")
+    print("Make sure model is installed: ollama pull gemma:2b\n")
 
-        print("=" *60)
-        print("Testing LLM Analyser")
-        print("="*60)
-        print("\nMake sure Ollama is running: ollama serve")
-        print("Make sure model is installed: ollama pull gemma:2b\n")
+    ai = LLMAnalyser()
 
-        ai = LLMAnalyser()
-
-        if ai.available:
-            test_results = {
-
-                'filename': 'suspicious.exe',
-                'dangerous_apis': [
+    if ai.available:
+        test_results = {
+            'filename': 'suspicious.exe',
+            'dangerous_apis': [
                 {'dll': 'kernel32.dll', 'api': 'CreateRemoteThread'},
                 {'dll': 'kernel32.dll', 'api': 'WriteProcessMemory'},
                 {'dll': 'advapi32.dll', 'api': 'RegSetValue'}
             ],
-
             'entropy': 7.2,
             'is_packed': True,
             'score': 85,
             'verdict': 'MALICIOUS'
-            }
+        }
 
-            print("Analyzing test malware...")
-            print("-"*60)
-            result = ai.analyze_malware(test_results)
-            print(result)
-            print("-"*60)
-        else:
-            print("\nTroubleshooting steps:")
-            print("1. Open a NEW terminal")
-            print("2. Run: ollama serve")
-            print("3. Keep that terminal open")
-            print("4. In THIS terminal, run: ollama pull gemma:2b")
-            print("5. Then run this script again")
-
+        print("Analyzing test malware...")
+        print("-" * 60)
+        result = ai.analyze_malware(test_results)
+        print(result)
+        print("-" * 60)
+    else:
+        print("\nTroubleshooting steps:")
+        print("1. Open a NEW terminal")
+        print("2. Run: ollama serve")
+        print("3. Keep that terminal open")
+        print("4. In THIS terminal, run: ollama pull gemma:2b")
+        print("5. Then run this script again")
         
 
 
