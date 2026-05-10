@@ -10,7 +10,7 @@ sys.path.insert(0,str(Path(__file__).parent.parent.parent))
 
 from Ai_Rev_Engin.Core.pe_parser import PeParser
 from Ai_Rev_Engin.Core.llm import LLMAnalyser
-from Ai_Rev_Engin.Data_Base import db_manager
+from Ai_Rev_Engin.Data_Base.db_manager import DatabaseManager
 
 class EDRWATCHER:
     def __init__(self):
@@ -20,14 +20,21 @@ class EDRWATCHER:
         self.log_path = Path('storage/edr_logs')
         self.log_path.mkdir(parents= True, exist_ok= True)
 
-    def watch_folder(self, folder_path, recursive = True):
+    def watch_folder(self, folder_path, recursive=True):
         from watchdog.observers import Observer
         from watchdog.events import FileSystemEventHandler
+        import os
 
-        class MalwarHandler(FileSystemEventHandler):
+        if not os.path.exists(folder_path):
+            print(f"Folder does not exist: {folder_path}")
+            print("Creating folder...")
+            os.makedirs(folder_path, exist_ok=True)
+            print(f"Created folder: {folder_path}")
+        
+        class MalwareHandler(FileSystemEventHandler):
             def __init__(self, callback):
                 self.callback = callback
-
+            
             def on_created(self, event):
                 if not event.is_directory:
                     file_path = Path(event.src_path)
@@ -38,22 +45,23 @@ class EDRWATCHER:
         print(f"Monitoring: {folder_path}")
         print("Analyzing new .exe/.dll/.scr/.sys files in real-time")
         print("Press Ctrl+C to stop\n")
-
-        handler = MalwarHandler(self.analyze_new_file)
-        Observer = Observer()
-        Observer.schedule(handler, str(folder_path), recursive= recursive)
-
+        
+        handler = MalwareHandler(self.analyze_new_file)
+        observer = Observer()
+        observer.schedule(handler, str(folder_path), recursive=recursive)
+        observer.start()
+        
         try:
             while True:
                 time.sleep(1)
-        
         except KeyboardInterrupt:
-            Observer.stop()
-            print("File Watcher stopped")
-
-        Observer.join()
+            observer.stop()
+            print("\nFile Watcher stopped")
+        observer.join()  # This line only runs after observer.stop()
 
     def analyze_new_file(self, file_path):
+        time.sleep(0.5)
+
         print(f"\n" + "=" * 60)
         print(f"NEW FILE DETECTED!")
         print(f"File: {file_path.name}")
@@ -64,83 +72,88 @@ class EDRWATCHER:
         try:
             with open(file_path, 'rb') as f:
                 if f.read(2) != b'MZ':
-                    print("This is not a PE File !")
+                    print(" Not a PE file - skipping")
                     return
                 
             parser = PeParser(str(file_path))
             if not parser.load():
-                print("Failed to analyze !")
+                print("Failed to analyze")
                 return
             
             dangerous = parser.get_dangerous_apis()
             score_data = parser.calculate_score()
             verdict = parser.get_verdict(score_data['score'])
 
-            print(f"\n" + "=" * 60)
-            print(f"NEW FILE DETECTED!")
-            print(f"File: {file_path.name}")
-            print(f"Path: {file_path}")
-            print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print("=" * 60)
+            print(f"\nAnalysis Results:")
+            print(f"Score: {score_data['score']}/100")
+            print(f"Verdict: {verdict}")
+            print(f"Entropy: {parser.get_entropy()}")
+            print(f"Packed: {'Yes' if parser.is_packed() else 'No'}")
 
             if dangerous:
-                print(f"\n Dangerous APIs found ({len(dangerous)}) : ")
-
+                print(f"\nDangerous APIs Found ({len(dangerous)}):")
                 for api in dangerous[:5]:
-                    print(f" - {api['api']} ({api['dll']})")
+                    print(f"      - {api['api']} ({api['dll']})")
 
-            self.log_event(file_path, score_data['score'], verdict, dangerous)
+            pseudocode = None
+            try:
+                from Ai_Rev_Engin.Core.ghidra_client import GhidraClient
+                ghidra = GhidraClient()
+                pseudocode = ghidra.get_pseudocode_text(str(file_path), max_functions=3)
+                if pseudocode and "No decompiled" not in pseudocode:
+                    print(f"\nGhidra: Extracted decompiled code")
+                else:
+                    print(f"\n Ghidra: No decompiled code available")
+            except Exception as e:
+                print(f"\nGhidra error: {e}")
 
-            # Alert
+            if dangerous or score_data['score'] >= 40:
+                print(f"\nAI Analysis:")
+                try:
+                    from Ai_Rev_Engin.Core.llm import LLMAnalyser
+                    ai = LLMAnalyser()
+                    if ai.available:
+                        ai_results = {
+                            'filename': file_path.name,
+                            'dangerous_apis': dangerous,
+                            'entropy': parser.get_entropy(),
+                            'is_packed': parser.is_packed(),
+                            'score': score_data['score'],
+                            'verdict': verdict,
+                            'mitre_techniques': []
+                        }
+                        ai_report = ai.analyze_malware(ai_results, pseudocode)
+                        print(ai_report)
+                    else:
+                        print(" AI not available (Ollama not running)")
+                except Exception as e:
+                    print(f" AI Error: {e}")
 
             if score_data['score'] >= 70:
-                self.send_alert(file_path,score_data['score'], verdict, dangerous)
+                self.send_alert(file_path, score_data['score'], verdict, dangerous)
                 self.quarantine_file(file_path)
                 self.terminate_process(file_path)
 
-            db = db_manager()
-
+            from Ai_Rev_Engin.Data_Base.db_manager import DatabaseManager
+            db = DatabaseManager()
             results = {
-                'file_name': file_path.name,
+                'filename': file_path.name,
                 'sha256': parser.compute_sha256(),
                 'file_size': file_path.stat().st_size,
                 'entropy': parser.get_entropy(),
-                'is_packed': parser.is_packed,
+                'is_packed': parser.is_packed(),
                 'score': score_data['score'],
                 'verdict': verdict,
                 'dangerous_apis': dangerous,
                 'imports': parser.get_imports()[:50]
             }
-
             db.save_analysis(results)
             db.close()
 
-            print("\n Analysis saved in Data_Base !")
+            print(f"\nAnalysis saved to database")
 
         except Exception as e:
-            print(f"Error analyzing the File : {e}")
-
-    def sen_alert(self, file_path, score, verdict, dangerous_apis):
-        print(f"\n" + "!" * 60)
-        print(f"MALICIOUS FILE DETECTED!")
-        print(f"!" * 60)
-        print(f"File: {file_path.name}")
-        print(f"Score: {score}/100")
-        print(f"Verdict: {verdict}")
-        print(f"APIs: {', '.join([a['api'] for a in dangerous_apis[:3]])}")
-        print(f"!" * 60)
-
-        try:
-            from plyer import notification
-            notification.notify(
-                tile = "MALWARE DETECTED !",
-                message = f"{file_path.name} \n Score: {score}/100 \n Verdict: {verdict}",
-                timeout = 10,
-                app_name = "AI_EDR"
-            )
-
-        except:
-            pass
+            print(f"Error analyzing file: {e}")
 
     def quarantine_file(self, file_path):
         try:
@@ -265,7 +278,13 @@ class EDRWATCHER:
                                         capture_output=True,
                                         text=True
                                     )
-                                    print(f"   Path: {path_result.stdout.split('\\n')[1] if path_result.stdout else 'Unknown'}")
+                                    if path_result.stdout:
+                                        lines = path_result.stdout.split('\n')
+                                        path_line = lines[1] if len(lines) > 1 else 'Unknown'
+                                        print(f"   Path: {path_line}")
+
+                                    else:
+                                        print(f"   Path: Unknown")
                 
                 time.sleep(check_interval)
                 

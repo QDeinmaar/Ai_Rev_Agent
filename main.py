@@ -358,25 +358,96 @@ def search_by_hash(sha256):
     else:
         print(f"\n No sample found for hash: {sha256[:16]}...")
 
+
+def start_edr():
+    from Ai_Rev_Engin.Core.EDR_Watcher.edr_watcher import EDRWATCHER
+    
+    print("""
+╔══════════════════════════════════════════════════════════════╗
+║                    EDR-LITE ACTIVE                           ║
+╠══════════════════════════════════════════════════════════════╣
+║  Features:                                                   ║
+║  • File System Watcher (monitors folders)                    ║
+║  • Real-time Malware Detection                               ║
+║  • Automatic Quarantine                                      ║
+║  • Process Monitoring                                        ║
+║  • Startup Persistence Detection                             ║
+║  • Windows Notifications                                     ║
+╚══════════════════════════════════════════════════════════════╝
+    """)
+    
+    edr = EDRWATCHER()
+    
+    print("\nSelect EDR Mode:")
+    print("1. Monitor Downloads folder (C:\\Downloads)")
+    print("2. Monitor Desktop folder")
+    print("3. Monitor custom folder")
+    print("4. Monitor processes only")
+    print("5. Scan startup locations for persistence")
+    print("6. Full system scan")
+    
+    choice = input("\nChoice (1-6): ").strip()
+    
+    if choice == "1":
+        edr.watch_folder("C:\\Downloads")
+    elif choice == "2":
+        edr.watch_folder(str(Path.home() / "Desktop"))
+    elif choice == "3":
+        folder = input("Folder path: ").strip()
+        edr.watch_folder(folder)
+    elif choice == "4":
+        edr.monitor_processes()
+    elif choice == "5":
+        edr.scan_startup()
+    elif choice == "6":
+        edr.full_system_scan()
+    else:
+        print("Invalid choice")
+
+
+def scan_startup():
+    from Ai_Rev_Engin.Core.EDR_Watcher.edr_watcher import EDRWATCHER
+    edr = EDRWATCHER()
+    edr.scan_startup()
+
+
+def full_system_scan():
+    from Ai_Rev_Engin.Core.EDR_Watcher.edr_watcher import EDRWATCHER
+    edr = EDRWATCHER()
+    edr.full_system_scan()
+
+
+def watch_folder(folder_path):
+    from Ai_Rev_Engin.Core.EDR_Watcher.edr_watcher import EDRWATCHER
+    edr = EDRWATCHER()
+    edr.watch_folder(folder_path)
+
 # Main CLI
 
 def main():
-
     if len(sys.argv) < 2:
         print("""
 ╔══════════════════════════════════════════════════════════════╗
-║        AI Reverse Engineering Platform                       ║
+║        AI Reverse Engineering Platform - EDR-Lite            ║
 ╚══════════════════════════════════════════════════════════════╝
 
 USAGE:
     python main.py <file_path>           Analyze a single file
     python main.py --batch <folder>      Analyze all files in folder
+    python main.py --edr                 Start EDR-Lite real-time monitoring
+    python main.py --scan-startup        Check startup persistence
+    python main.py --full-scan           Full system malware scan
+    python main.py --watch <folder>      Monitor folder for new files
     python main.py --list                Show recent analyses
     python main.py --search <sha256>     Find by hash
 
 EXAMPLES:
     python main.py malware.exe
     python main.py --batch C:\\samples\\
+    python main.py --edr
+    python main.py --watch C:\\Downloads
+    python main.py --scan-startup
+    python main.py --full-scan
     python main.py --list
     python main.py --search abc123...
 """)
@@ -386,6 +457,18 @@ EXAMPLES:
 
     if command == "--batch" and len(sys.argv) > 2:
         batch_analysis(sys.argv[2])
+    
+    elif command == "--edr":
+        start_edr()
+    
+    elif command == "--scan-startup":
+        scan_startup()
+    
+    elif command == "--full-scan":
+        full_system_scan()
+    
+    elif command == "--watch" and len(sys.argv) > 2:
+        watch_folder(sys.argv[2])
     
     elif command == "--list":
         list_recent()
@@ -398,6 +481,7 @@ EXAMPLES:
 
     else:
         analyze_file(command)
+
 
 if __name__ == "__main__":
     main()
