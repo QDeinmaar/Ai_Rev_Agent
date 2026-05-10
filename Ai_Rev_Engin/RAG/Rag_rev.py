@@ -278,6 +278,56 @@ class RAG:
         context = "\n [Retrieved Knowledge - similar malware patterns]\n"
         context += "The following khnow malware patterns match this file's APIs: \n\n"
 
+    def keywords_search(self, api_names: List[str]) -> list[RetrieveEvidence]:
+        matches = []
+
+        for pattern in self.patterns:
+            matched_apis = [api for api in api_names if api in pattern['apis']]
+            if matched_apis:
+                evidence = RetrieveEvidence()
+                evidence.source = pattern['name']
+                evidence.content = pattern['description']
+                evidence.similarity = len(matched_apis) / len(pattern['apis'])
+                evidence.confidence = Confidence.HIGH if evidence.similarity > 0.5 else Confidence.MEDIUM
+                evidence.mitre_id = pattern['mitre_id']
+                evidence.mitre_name = pattern['mitre_name']
+                matches.append(evidence)
+
+        return matches
+    
+    def _vector_search(self, api_names: List[str]) -> List[RetrieveEvidence]:
+        matches = []
+        query = " ".join(api_names)
+
+        try:
+            results = self.collection.query(
+                query_texts = [query],
+                n_results = 5 
+            )
+
+            if results and results['documents']:
+                for i, doc in enumerate(results['documents'][0]):
+                    metadata = results['metadatas'][0][i]
+                    distance = results["distances"][0][i] if 'distances' in results else 0.5
+
+                    evidence = RetrieveEvidence()
+                    evidence.source = metadata.get('name', 'Unkhown')
+                    evidence.content = doc[:200]
+                    evidence.similarity = 1 - distance if distance <= 1 else 0.5
+                    evidence.confidence = Confidence.HIGH if evidence.similarity > 0.7 else Confidence.MEDIUM
+                    evidence.mitre_id = metadata.get('mitre_id', ' ')
+                    evidence.mitre_name = metadata.get('mitre_name', ' ')
+                    matches.append(evidence)
+
+        except Exception as e:
+            print(f"Vector search failed : {e}")
+
+        return matches
+    
+    def _graph_search(self, mitre_ids: List[str]) -> List[RetrieveEvidence]:
+        
+           
+
         
 
 
