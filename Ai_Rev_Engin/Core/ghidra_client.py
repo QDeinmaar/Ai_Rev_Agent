@@ -15,7 +15,7 @@ class GhidraClient:
     def decompile(self, file_path, timeout=180):
 
         if not os.path.exists(file_path):
-            print(f"❌ File not found: {file_path}")
+            print(f"File not found: {file_path}")
             return []
         
         # Delete old output
